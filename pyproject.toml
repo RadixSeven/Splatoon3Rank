@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "splatoon_3_ranking"
+version = "2024.4.27"
+dependencies = [
+    "black",
+    "ipython",
+    "jupyter",
+    "matplotlib",
+    "numpy",
+    "scipy",
+    "pymc",
+    "arviz",
+    "ipympl",
+]
+requires-python = ">=3.11"
+authors = [
+  {name = "Eric Moyer", email = "compu.moyer@gmail.com"},
+]
+maintainers = [
+  {name = "Eric Moyer", email = "compu.moyer@gmail.com"},
+]
+description = "A ranking system for Splatoon based on stat.ink data."
+readme = "README.md"
+keywords = ["Splatoon 3", "video games", "stat.ink"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python"
+]
