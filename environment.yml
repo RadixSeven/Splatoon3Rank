@@ -28,3 +28,4 @@ dependencies:
   - pymc
   - scipy
   - arviz
+  - tqdm

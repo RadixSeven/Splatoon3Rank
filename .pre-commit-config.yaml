@@ -1,0 +1,17 @@
+repos:
+  # Using this mirror lets us use pypyc-compiled black, which is about 2x faster
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.3.0
+    hooks:
+      - id: black-jupyter
+        language_version: python3.11
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.0.0
+    hooks:
+      - id: prettier
+        types_or: [yaml, markdown, javascript, ts, html, css, scss, less]
