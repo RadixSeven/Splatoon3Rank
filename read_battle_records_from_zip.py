@@ -7,7 +7,7 @@ from io import TextIOWrapper
 from zipfile import ZipFile, Path
 from datetime import datetime
 from tqdm import tqdm
-from typing import Literal, TypeGuard, TextIO, cast
+from typing import Literal, TypeGuard, TextIO, cast, Generator, IO
 
 from battle_record import (
     TeamKey,
@@ -252,20 +252,24 @@ def battle_record_for_row(row_num: int, row: dict[str, str]) -> BattleRecord | E
     return Err(f"Invalid win key: {winner_key} on row {row_num}")
 
 
-def battles_from_csv(file: TextIO) -> list[BattleRecord]:
+def battles_from_csv(file: TextIO) -> Generator[BattleRecord, None, None]:
     from csv import DictReader
 
     reader = cast(DictReader, DictReader(file))
-    with_errs = [
+    with_errs = (
         battle_record_for_row(row_num, row)
         for row_num, row in enumerate(tqdm(reader, leave=False))
-    ]
-    for err in (err for err in with_errs if isinstance(err, Err)):
-        err.log()
-    return [record for record in with_errs if not isinstance(record, Err)]
+    )
+    for value in with_errs:
+        if isinstance(value, Err):
+            value.log()
+            continue
+        yield value
 
 
-def battle_records_from_zip(zip_file_path: str | Path) -> list[BattleRecord]:
+def battle_records_from_zip(
+    zip_file_path: str | Path,
+) -> Generator[BattleRecord, None, None]:
     """
     Returns a list of all battle records from the given zip file.
 
@@ -274,7 +278,6 @@ def battle_records_from_zip(zip_file_path: str | Path) -> list[BattleRecord]:
     Returns:
         A list of all battle records from the given zip file.
     """
-    all_battle_records = []
     with ZipFile(zip_file_path, "r") as z:
         csv_bytes = sum(
             i.file_size for i in z.infolist() if i.filename.endswith(".csv")
@@ -289,23 +292,28 @@ def battle_records_from_zip(zip_file_path: str | Path) -> list[BattleRecord]:
                 # Ensure it's a csv file (if it ends in .csv, we can assume it's not a directory)
                 if filename.endswith(".csv"):
                     with z.open(filename) as file:
-                        battles = battles_from_csv(TextIOWrapper(file, "utf-8"))
-                        all_battle_records.extend(battles)
+                        for battle in battles_from_csv(TextIOWrapper(file, "utf-8")):
+                            yield battle
                     pbar.update(info.file_size)
-    return all_battle_records
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Read battle records from a zip file of CSVs."
+        description="Read battle records from a zip file of CSVs and write to a pickle."
     )
     parser.add_argument("zip_file", help="The path to the zip file.")
     parser.add_argument(
-        "output", help="The path to the output file (will be pickle format)."
+        "output",
+        help="The path to the output file (will be a "
+        "gzipped pickle file e.g., foo.pkl.gz). "
+        "Each record will be an entry.",
     )
     args = parser.parse_args()
-    battle_records = battle_records_from_zip(args.zip_file)
-    pickle.dump(battle_records, open(args.output, "wb"))
+    import gzip
+
+    with gzip.open(args.output, "wb") as f:
+        for record in battle_records_from_zip(args.zip_file):
+            pickle.dump(record, cast(IO[bytes], f))
 
 
 if __name__ == "__main__":
