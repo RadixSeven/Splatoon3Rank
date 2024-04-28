@@ -312,8 +312,7 @@ def battles_from_csv(file: TextIO) -> Generator[BattleRecord, None, None]:
 
     reader = cast(DictReader, DictReader(file))
     with_errs = (
-        battle_record_for_row(row_num, row)
-        for row_num, row in enumerate(tqdm(reader, leave=False))
+        battle_record_for_row(row_num, row) for row_num, row in enumerate(reader)
     )
     for value in with_errs:
         if isinstance(value, Err):
