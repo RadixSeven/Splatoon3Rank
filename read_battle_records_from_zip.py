@@ -87,6 +87,16 @@ def is_valid_member_num(member_num: int) -> TypeGuard[Literal[1, 2, 3, 4]]:
 def create_participant(
     data: dict[str, str], team: TeamKey, member_num: int
 ) -> BattleParticipant | Err:
+    """
+    Create a BattleParticipant from a row of CSV data.
+
+    Args:
+        data: The row data for a single row of the CSV
+        team: The team the participant belongs to.
+        member_num: The number of the participant in the team. 1 to 4.
+    Returns:
+        A BattleParticipant if the data is valid, otherwise an Err.
+    """
     # The ID of the participant. e.g., A1, B3, etc.
     id_ = f"{team[0].upper()}{member_num}"
     weapon_key = data[f"{id_}-weapon"]
@@ -111,6 +121,18 @@ def create_participant(
 def create_team_performance(
     team: TeamKey, raw_inked: str, raw_inked_percent: str, raw_count: str
 ) -> RankedPerformance | TurfWarPerformance | None | Err:
+    """
+    Create a performance object for a team from the raw data.
+
+    Args:
+        team: The team to create the performance for.
+        raw_inked: The raw inked string from the CSV.
+        raw_inked_percent: The raw inked percent string from the CSV.
+        raw_count: The raw count string from the CSV.
+    Returns:
+        A RankedPerformance or TurfWarPerformance if the data is present for those modes,
+        None if no data is present, or an Err if the data is invalid.
+    """
     if raw_count:
         try:
             return RankedPerformance(int(raw_count))
@@ -139,6 +161,15 @@ def create_team_performance(
 def create_team_characteristics(
     data: dict[str, str], team: TeamKey
 ) -> TeamCharacteristics | Err:
+    """
+    Create TeamCharacteristics from a row of CSV data
+
+    Args:
+        data: The row data for a single row of the CSV
+        team: The team to create the characteristics for.
+    Returns:
+        A TeamCharacteristics if the data is valid, otherwise an Err.
+    """
     raw_color = data[f"{team}-color"]
     color = None if raw_color == "" else raw_color
 
@@ -166,6 +197,13 @@ def create_team_characteristics(
 def create_medal(
     data: dict[str, str], medal_num: Literal[1, 2, 3]
 ) -> Medal | None | Err:
+    """
+    Create a Medal from a row of CSV data
+
+    Args:
+        data: The row data for a single row of the CSV
+        medal_num: The medal number to create.
+    """
     grade = data[f"medal{medal_num}-grade"]
     name = data[f"medal{medal_num}-name"]
 
@@ -183,6 +221,15 @@ def is_medal_number(medal_num: int) -> TypeGuard[Literal[1, 2, 3]]:
 
 
 def battle_record_for_row(row_num: int, row: dict[str, str]) -> BattleRecord | Err:
+    """
+    Create a BattleRecord from a row of data.
+
+    Args:
+        row_num: The row number.
+        row: The row of data.
+    Returns:
+        A BattleRecord if the row is valid, otherwise an Err.
+    """
     lobby_key = row["lobby"]
     mode_key = row["mode"]
     stage_key = row["stage"]
@@ -253,6 +300,14 @@ def battle_record_for_row(row_num: int, row: dict[str, str]) -> BattleRecord | E
 
 
 def battles_from_csv(file: TextIO) -> Generator[BattleRecord, None, None]:
+    """
+    Returns all the battle records from the given CSV file.
+
+    Args:
+        file: The CSV file to read from.
+    Returns:
+        All battle records from the given CSV file.
+    """
     from csv import DictReader
 
     reader = cast(DictReader, DictReader(file))
@@ -271,7 +326,7 @@ def battle_records_from_zip(
     zip_file_path: str | Path,
 ) -> Generator[BattleRecord, None, None]:
     """
-    Returns a list of all battle records from the given zip file.
+    Returns all the battle records from the given zip file.
 
     Args:
         zip_file_path: The path to the zip file containing the battle records.
