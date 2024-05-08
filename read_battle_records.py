@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import pickle
 from datetime import datetime
 from io import TextIOWrapper
 from typing import TypeGuard, Literal, TextIO, Generator, cast
@@ -343,3 +344,36 @@ def battle_records_from_zip(
                         for battle in battles_from_csv(TextIOWrapper(file, "utf-8")):
                             yield battle
                     pbar.update(info.file_size)
+
+
+def battle_records_from_pkl_gz(
+    pkl_gz_file_path: str | Path,
+) -> Generator[BattleRecord, None, None]:
+    """
+    Returns all the battle records from the given pickle file.
+
+    Args:
+        pkl_gz_file_path: The path to the gzipped pickle file containing the battle records.
+    Returns:
+        A list of all battle records from the given pickle file.
+    """
+    import gzip
+
+    record_num = 0
+    with gzip.open(pkl_gz_file_path, "rb") as f:
+        while True:
+            record_num += 1
+            try:
+                r = pickle.load(f)
+                if isinstance(r, BattleRecord):
+                    yield r
+                else:
+                    logger.error(f"Failed to load record {record_num}: {repr(r)}")
+            except EOFError:
+                break
+            except pickle.UnpicklingError as e:
+                logger.error(f"Failed to unpickle record {record_num}: {e}")
+                continue
+            except Exception as e:
+                logger.error(f"Failed to load record {record_num}: {e}")
+                continue
