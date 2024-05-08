@@ -1,3 +1,6 @@
 *.egg-info
 __pycache__/
 battle-results-csv.zip
+battle-results.pkl.gz
+202?-??-??*.csv
+202?-??-??*.zip
