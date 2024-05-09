@@ -9,6 +9,10 @@ import numpy as np
 
 from battle_record import BattleRecord, BattleParticipant, WeaponKey
 
+"""
+This module contains functions for analyzing battle records and collections thereof.
+"""
+
 
 def all_weapons_used(battle_records: Iterable[BattleRecord]) -> set[WeaponKey]:
     """
