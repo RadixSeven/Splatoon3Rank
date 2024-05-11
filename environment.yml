@@ -25,6 +25,8 @@ dependencies:
   - conda-verify
   - console_shortcut
   - numpy
+  - nutpie
+  - pre-commit
   - pymc
   - scipy
   - arviz

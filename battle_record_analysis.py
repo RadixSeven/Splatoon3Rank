@@ -1,17 +1,21 @@
-from itertools import chain
-from typing import Iterable, Callable
-
-from numpy.typing import NDArray
-from tqdm import tqdm
-
-import pymc as pm
+import logging
 import numpy as np
+import pymc as pm
+import pytensor.tensor as tt
 
 from battle_record import BattleRecord, BattleParticipant, WeaponKey
+from itertools import chain
+from numpy.typing import NDArray
+from tqdm import tqdm
+from typing import Iterable, Callable
+
 
 """
 This module contains functions for analyzing battle records and collections thereof.
 """
+
+
+logger = logging.getLogger(__name__)
 
 
 def all_weapons_used(battle_records: Iterable[BattleRecord]) -> set[WeaponKey]:
@@ -28,7 +32,7 @@ def all_weapons_used(battle_records: Iterable[BattleRecord]) -> set[WeaponKey]:
         battle_record.participants.values()
         for battle_record in tqdm(battle_records, desc="Tallying weapons used")
     )
-    return {participant.weapon for participant in participants}
+    return {participant.normalized_weapon for participant in participants}
 
 
 def single_battle_observed_weapon_variables(
@@ -52,9 +56,9 @@ def single_battle_observed_weapon_variables(
     a = np.zeros(2 * num_weapons, dtype=np.int8)
     for participant in battle_record.participants.values():
         if participant.team == "alpha":
-            a[weapon_index[participant.weapon]] += 1
+            a[weapon_index[participant.normalized_weapon]] += 1
         else:
-            a[num_weapons + weapon_index[participant.weapon]] -= 1
+            a[num_weapons + weapon_index[participant.normalized_weapon]] -= 1
     return a
 
 
@@ -137,6 +141,12 @@ def weapon_only_model(
             battle_record_creator(), weapon_index
         )
     )
+    logger.info(f"Done reading.")
+    logger.info(f"Number of weapons: {len(weapons)}")
+    logger.info(
+        f"Shape of observed_weapon_variables: {observed_weapon_variables.shape}"
+    )
+    logger.info(f"Shape of battle_results: {battle_results.shape}")
 
     coords = {"weapons": weapons}
     with pm.Model(coords=coords) as model:
@@ -145,19 +155,41 @@ def weapon_only_model(
         )
         battle_results_data = pm.Data("battle_results_data", battle_results)
 
-        weapon_strength = pm.Exponential("weapon_strength", 1, dims=("weapons",))
+        weapon_strength = tt.reshape(
+            pm.Exponential("weapon_strength", 1, dims="weapons"), (1, -1)
+        )
         both_sides_weapon_strengths = pm.math.concatenate(
-            weapon_strength, weapon_strength
+            [weapon_strength, weapon_strength], axis=1
         )
-        num_and_den_weapon_strengths = pm.math.concatenate(
-            both_sides_weapon_strengths, both_sides_weapon_strengths
+        single_row_num_and_den_weapon_strengths = pm.math.concatenate(
+            [both_sides_weapon_strengths, both_sides_weapon_strengths], axis=1
         )
+        logger.info(
+            f"Shape of single_row_num_and_den_weapon_strengths: {single_row_num_and_den_weapon_strengths.shape.eval()}"
+        )
+        num_and_den_weapon_strengths = tt.repeat(
+            single_row_num_and_den_weapon_strengths,
+            observed_weapon_data.shape[0],
+            axis=0,
+        )
+        logger.info(
+            f"Shape of num_and_den_weapon_strengths: {num_and_den_weapon_strengths.shape.eval()}"
+        )
+
         num_and_den_observed_weapons = pm.math.concatenate(
-            observed_weapon_data, -abs(observed_weapon_data)
+            [observed_weapon_data, -abs(observed_weapon_data)], axis=1
         )
-        prob_team_alpha_win = pm.math.exp(
-            pm.math.dot(num_and_den_weapon_strengths, num_and_den_observed_weapons)
+        logger.info(
+            f"Shape of num_and_den_observed_weapons: {num_and_den_observed_weapons.shape.eval()}"
         )
+
+        weapon_contributions = (
+            num_and_den_weapon_strengths * num_and_den_observed_weapons
+        )
+        team_alpha_strength = tt.reshape(tt.sum(weapon_contributions, axis=1), (-1, 1))
+        logger.info(f"Shape of team_alpha_strength: {team_alpha_strength.shape.eval()}")
+
+        prob_team_alpha_win = pm.math.exp(team_alpha_strength)
         pm.Bernoulli(
             "battle_results", prob_team_alpha_win, observed=battle_results_data
         )

@@ -1,4 +1,6 @@
+import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, NewType, TypeGuard
@@ -14,6 +16,9 @@ StageKey = NewType("StageKey", str)
 WEAPON_KEYS = [weapon["key"] for weapon in WEAPON_DATA]
 ABILITY_KEYS = [ability["key"] for ability in ABILITY_DATA]
 STAGE_KEYS = [stage["key"] for stage in STAGE_DATA]
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_weapon_key(key: str) -> TypeGuard[WeaponKey]:
@@ -106,7 +111,8 @@ class BattleRecord:
         mode: The mode the battle took place in. example: "area"
         stage: The stage the battle took place in. example: "masaba"
         length: The length of the battle in seconds.
-        winning_team: The team that won the battle.
+        winning_team: The team that won the battle. (Tri-color battles and private battles
+           are removed from the data before ``stat.ink`` outputs it.)
         knockout: True if the battle was won by a knockout.
         rank: The rank of the submitter in the battle. "" if not a ranked battle.
         power: The power of the submitter in the battle. Anarchy Power,
@@ -201,6 +207,45 @@ class Medal:
     grade: MedalGrade
 
 
+# noinspection SpellCheckingInspection
+# The map from weapon keys of re-skinned weapons to
+# their original weapons.
+_normalized_weapon_keys = {
+    weapon["key"]: weapon["reskin_of"]
+    for weapon in WEAPON_DATA
+    if "reskin_of" in weapon
+}
+
+
+def log_missing_duplicate_weapon_keys():
+    """Log the missing duplicate weapon keys."""
+    weapons_by_elements = defaultdict(list)
+    for weapon in WEAPON_DATA:
+        weapons_by_elements[
+            (weapon["main"], weapon["sub"]["key"], weapon["special"]["key"])
+        ].append(weapon["key"])
+    for elements, identical_weapons in weapons_by_elements.items():
+        if len(identical_weapons) > 1:
+            for weapon in identical_weapons:
+                if weapon in _normalized_weapon_keys.keys():
+                    if _normalized_weapon_keys[weapon] in identical_weapons:
+                        continue
+                    logger.error(
+                        f'The normalized weapon "{_normalized_weapon_keys[weapon]}" for {weapon}'
+                        f" is not in the identical weapons list {sorted(identical_weapons)}."
+                    )
+                if weapon in _normalized_weapon_keys.values():
+                    continue
+                logger.error(
+                    f"Missing duplicate weapon key: {weapon} with elements {elements}. "
+                    f"Other identical weapons: {sorted(set(identical_weapons) - {weapon})}."
+                )
+
+
+# Check for missing duplicate weapon keys.
+log_missing_duplicate_weapon_keys()
+
+
 @dataclass
 class BattleParticipant:
     """
@@ -228,3 +273,7 @@ class BattleParticipant:
     num_special_uses: int
     turf_inked: int
     abilities: dict[AbilityKey, float]
+
+    @property
+    def normalized_weapon(self):
+        return _normalized_weapon_keys.get(self.weapon, self.weapon)
