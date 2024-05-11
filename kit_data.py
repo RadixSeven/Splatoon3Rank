@@ -1,7 +1,7 @@
 # This is copied from
 # https://www.stat.ink/api/v3/weapon?full=1
 # noinspection SpellCheckingInspection
-WEAPON_DATA = [
+KIT_DATA = [
     {
         "key": "52gal",
         "aliases": ["50", "52_gal"],

@@ -14,7 +14,7 @@ from battle_record import (
     AbilityKey,
     is_ability_key,
     BattleParticipant,
-    is_weapon_key,
+    is_kit_key,
     RankedPerformance,
     TurfWarPerformance,
     TeamCharacteristics,
@@ -94,12 +94,12 @@ def create_participant(
     """
     # The ID of the participant. e.g., A1, B3, etc.
     id_ = f"{team[0].upper()}{member_num}"
-    weapon_key = data[f"{id_}-weapon"]
-    if is_valid_member_num(member_num) and is_weapon_key(weapon_key):
+    kit_key = data[f"{id_}-weapon"]
+    if is_valid_member_num(member_num) and is_kit_key(kit_key):
         return BattleParticipant(
             team=team,
             team_member_num=member_num,
-            weapon=weapon_key,
+            kit=kit_key,
             num_kills_and_assists=int(data[f"{id_}-kill-assist"]),
             num_kills=int(data[f"{id_}-kill"]),
             num_assists=int(data[f"{id_}-assist"]),
@@ -109,8 +109,8 @@ def create_participant(
             abilities=parse_abilities(data[f"{id_}-abilities"]),
         )
     if not is_valid_member_num(member_num):
-        Err("Invalid member number, must be between 1 and 4. {member_num}")
-    return Err("Invalid weapon key. {weapon_key}")
+        Err(f"Invalid member number, must be between 1 and 4. {member_num}")
+    return Err(f"Invalid kit key. {kit_key}")
 
 
 def create_team_performance(

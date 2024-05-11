@@ -6,14 +6,14 @@ from datetime import datetime
 from typing import Literal, NewType, TypeGuard
 
 from ability_data import ABILITY_DATA
-from weapon_data import WEAPON_DATA
+from kit_data import KIT_DATA
 from stage_data import STAGE_DATA
 
-WeaponKey = NewType("WeaponKey", str)
+KitKey = NewType("KitKey", str)
 AbilityKey = NewType("AbilityKey", str)
 StageKey = NewType("StageKey", str)
 
-WEAPON_KEYS = [weapon["key"] for weapon in WEAPON_DATA]
+KIT_KEYS = [kit["key"] for kit in KIT_DATA]
 ABILITY_KEYS = [ability["key"] for ability in ABILITY_DATA]
 STAGE_KEYS = [stage["key"] for stage in STAGE_DATA]
 
@@ -21,8 +21,8 @@ STAGE_KEYS = [stage["key"] for stage in STAGE_DATA]
 logger = logging.getLogger(__name__)
 
 
-def is_weapon_key(key: str) -> TypeGuard[WeaponKey]:
-    return key in WEAPON_KEYS
+def is_kit_key(key: str) -> TypeGuard[KitKey]:
+    return key in KIT_KEYS
 
 
 def is_ability_key(key: str) -> TypeGuard[AbilityKey]:
@@ -208,42 +208,40 @@ class Medal:
 
 
 # noinspection SpellCheckingInspection
-# The map from weapon keys of re-skinned weapons to
-# their original weapons.
-_normalized_weapon_keys = {
-    weapon["key"]: weapon["reskin_of"]
-    for weapon in WEAPON_DATA
-    if "reskin_of" in weapon
+# The map from kit keys of re-skinned kits to
+# their original kits.
+_normalized_kit_keys = {
+    kit["key"]: kit["reskin_of"] for kit in KIT_DATA if "reskin_of" in kit
 }
 
 
-def log_missing_duplicate_weapon_keys():
-    """Log the missing duplicate weapon keys."""
-    weapons_by_elements = defaultdict(list)
-    for weapon in WEAPON_DATA:
-        weapons_by_elements[
-            (weapon["main"], weapon["sub"]["key"], weapon["special"]["key"])
-        ].append(weapon["key"])
-    for elements, identical_weapons in weapons_by_elements.items():
-        if len(identical_weapons) > 1:
-            for weapon in identical_weapons:
-                if weapon in _normalized_weapon_keys.keys():
-                    if _normalized_weapon_keys[weapon] in identical_weapons:
+def log_missing_duplicate_kit_keys():
+    """Log the missing duplicate kit keys."""
+    kits_by_elements = defaultdict(list)
+    for kit in KIT_DATA:
+        kits_by_elements[
+            (kit["main"], kit["sub"]["key"], kit["special"]["key"])
+        ].append(kit["key"])
+    for elements, identical_kits in kits_by_elements.items():
+        if len(identical_kits) > 1:
+            for kit in identical_kits:
+                if kit in _normalized_kit_keys.keys():
+                    if _normalized_kit_keys[kit] in identical_kits:
                         continue
                     logger.error(
-                        f'The normalized weapon "{_normalized_weapon_keys[weapon]}" for {weapon}'
-                        f" is not in the identical weapons list {sorted(identical_weapons)}."
+                        f'The normalized kit "{_normalized_kit_keys[kit]}" for {kit}'
+                        f" is not in the identical kits list {sorted(identical_kits)}."
                     )
-                if weapon in _normalized_weapon_keys.values():
+                if kit in _normalized_kit_keys.values():
                     continue
                 logger.error(
-                    f"Missing duplicate weapon key: {weapon} with elements {elements}. "
-                    f"Other identical weapons: {sorted(set(identical_weapons) - {weapon})}."
+                    f"Missing duplicate kit key: {kit} with elements {elements}. "
+                    f"Other identical kits: {sorted(set(identical_kits) - {kit})}."
                 )
 
 
-# Check for missing duplicate weapon keys.
-log_missing_duplicate_weapon_keys()
+# Check for missing duplicate kit keys.
+log_missing_duplicate_kit_keys()
 
 
 @dataclass
@@ -254,7 +252,7 @@ class BattleParticipant:
     Attributes:
         team: The team the participant belongs to.
         team_member_num: The number of the participant in the team. 1 to 4.
-        weapon: The weapon the participant used.
+        kit: The weapon kit the participant used.
         num_kills_and_assists: num_kills + num_assists (redundant, but here because it's in the data)
         num_kills: The number of kills the participant got.
         num_assists: The number of assists the participant got.
@@ -265,7 +263,7 @@ class BattleParticipant:
 
     team: TeamKey
     team_member_num: Literal[1, 2, 3, 4]
-    weapon: WeaponKey
+    kit: KitKey
     num_kills_and_assists: int
     num_kills: int
     num_assists: int
@@ -275,5 +273,5 @@ class BattleParticipant:
     abilities: dict[AbilityKey, float]
 
     @property
-    def normalized_weapon(self):
-        return _normalized_weapon_keys.get(self.weapon, self.weapon)
+    def normalized_kit(self):
+        return _normalized_kit_keys.get(self.kit, self.kit)
