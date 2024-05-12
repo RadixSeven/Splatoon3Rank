@@ -44,6 +44,11 @@ def single_battle_observed_kit_variables(
     kit variables for team alpha, and the second half will be the observed
     kit variables for team bravo.
 
+    Importantly, the observed variables for team alpha will be negated.
+    Since the team strength is the sum of the kit factors and the
+    final probability is 1/(1+exp(bravo_strength-alpha_strength)), this
+    embeds the final subtraction in the observed variables.
+
     Args:
         battle_record: The battle record to examine.
         kit_index: A mapping from kit keys to indices.
@@ -55,9 +60,9 @@ def single_battle_observed_kit_variables(
     a = np.zeros(2 * num_kits, dtype=np.int8)
     for participant in battle_record.participants.values():
         if participant.team == "alpha":
-            a[kit_index[participant.normalized_kit]] += 1
+            a[kit_index[participant.normalized_kit]] -= 1
         else:
-            a[num_kits + kit_index[participant.normalized_kit]] -= 1
+            a[num_kits + kit_index[participant.normalized_kit]] += 1
     return a
 
 
@@ -117,15 +122,18 @@ def kit_only_model(
     """
     Create a PyMC3 model for the given battle record creator.
 
+    Team strength is determined by the kits used by the team members.
+    let A = alpha_strength and B = bravo_strength
+    prob_team_alpha_win = exp(A)/(exp(A)+exp(B))
+    This can be rewritten as prob_team_alpha_win = 1/(1+exp(B)/exp(A)) = 1/(1+exp(B-A))
+
     Here is the formula for each battle record:
     kit_strength = pm.Exp("kit_strength", 1, dims=("kits",))
     both_sides_kit_strengths = concatenate(kit_strength, kit_strength)
-    num_and_den_kit_strengths = concatenate(both_sides_kit_strengths, both_sides_kit_strengths)
-    num_and_den_observed_kits = concatenate(observed_kit_variables, -abs(observed_kit_variables))
     The basic formula is prob_team_alpha_win for each battle = exp(
-        dot(num_and_den_kit_strengths, num_and_den_observed_kits)
+        dot(kit_strengths, observed_kits)
     )
-    Kit strength's prior distributed as an exponential variable with mean 1
+    Kit strength's prior distributed as a normal variable with mean 1
 
     Args:
         battle_record_creator: A callable that returns an
@@ -141,6 +149,8 @@ def kit_only_model(
             battle_record_creator(), kit_index
         )
     )
+    shuffled_indices = np.random.permutation(battle_results.shape[0])
+
     logger.info(f"Done reading.")
     logger.info(f"Number of kits: {len(kits)}")
     logger.info(f"Shape of observed_kit_variables: {observed_kit_variables.shape}")
@@ -148,42 +158,38 @@ def kit_only_model(
 
     coords = {"kits": kits}
     with pm.Model(coords=coords) as model:
-        observed_kit_data = pm.Data("observed_kit_data", observed_kit_variables)
-        battle_results_data = pm.Data("battle_results_data", battle_results)
+        observed_kit_data = pm.Data(
+            "observed_kit_data", observed_kit_variables[shuffled_indices]
+        )
+        battle_results_data = pm.Data(
+            "battle_results_data", battle_results[shuffled_indices]
+        )
 
         kit_strength = tt.reshape(
-            pm.Exponential("kit_strength", 1, dims="kits"), (1, -1)
+            pm.Normal("kit_strength", mu=1, sigma=0, dims="kits"), (1, -1)
         )
         both_sides_kit_strengths = pm.math.concatenate(
             [kit_strength, kit_strength], axis=1
         )
-        single_row_num_and_den_kit_strengths = pm.math.concatenate(
-            [both_sides_kit_strengths, both_sides_kit_strengths], axis=1
-        )
         logger.info(
-            f"Shape of single_row_num_and_den_kit_strengths: {single_row_num_and_den_kit_strengths.shape.eval()}"
+            f"Shape of both_sides_kit_strengths: {both_sides_kit_strengths.shape.eval()}"
         )
-        num_and_den_kit_strengths = tt.repeat(
-            single_row_num_and_den_kit_strengths,
+        all_matches_kit_strengths = tt.repeat(
+            both_sides_kit_strengths,
             observed_kit_data.shape[0],
             axis=0,
         )
         logger.info(
-            f"Shape of num_and_den_kit_strengths: {num_and_den_kit_strengths.shape.eval()}"
+            f"Shape of all_matches_kit_strengths: {all_matches_kit_strengths.shape.eval()}"
         )
 
-        num_and_den_observed_kits = pm.math.concatenate(
-            [observed_kit_data, -abs(observed_kit_data)], axis=1
+        kit_contributions = all_matches_kit_strengths * observed_kit_data
+        team_beta_advantage = tt.exp(
+            tt.reshape(tt.sum(kit_contributions, axis=1), (-1, 1))
         )
-        logger.info(
-            f"Shape of num_and_den_observed_kits: {num_and_den_observed_kits.shape.eval()}"
-        )
+        logger.info(f"Shape of team_beta_advantage: {team_beta_advantage.shape.eval()}")
 
-        kit_contributions = num_and_den_kit_strengths * num_and_den_observed_kits
-        team_alpha_strength = tt.reshape(tt.sum(kit_contributions, axis=1), (-1, 1))
-        logger.info(f"Shape of team_alpha_strength: {team_alpha_strength.shape.eval()}")
-
-        prob_team_alpha_win = pm.math.exp(team_alpha_strength)
+        prob_team_alpha_win = 1 / (1 + team_beta_advantage)
         pm.Bernoulli(
             "battle_results", prob_team_alpha_win, observed=battle_results_data
         )
