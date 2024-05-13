@@ -4,3 +4,5 @@ battle-results-csv.zip
 battle-results.pkl.gz
 202?-??-??*.csv
 202?-??-??*.zip
+202[0-9]*-battles.zip
+202?-*[-_]trace.pkl
